@@ -81,7 +81,7 @@ else
     pushd $pytorch_rootdir
 fi
 pushd $pytorch_rootdir
-git submodule update --init --recursive
+git submodule update --init --recursive --jobs 0
 
 export PATCHELF_BIN=/usr/local/bin/patchelf
 patchelf_version=`$PATCHELF_BIN --version`
@@ -123,9 +123,10 @@ fi
 
     time CMAKE_ARGS=${CMAKE_ARGS[@]} \
         EXTRA_CAFFE2_CMAKE_FLAGS="${EXTRA_CAFFE2_CMAKE_FLAGS[@]} $STATIC_CMAKE_FLAG" \
+        REL_WITH_DEB_INFO=1 \
         python setup.py install
 
-    mkdir -p libtorch/{lib,bin,include,share}
+    mkdir -p libtorch/{lib,bin,include,share,debug}
 
     # Copy over all lib files
     cp -rv build/lib/*                libtorch/lib/
@@ -137,6 +138,26 @@ fi
 
     # Copy over all of the cmake files
     cp -rv build/lib*/torch/share/*   libtorch/share/
+
+    # Split libtorch into debug / release version
+    cp libtorch/lib/libtorch_cpu.so libtorch/lib/libtorch_cpu.so.dbg
+
+    # Remove debug symbols on release lib
+    strip libtorch/lib/libtorch_cpu.so
+
+    # Keep debug symbols on debug lib
+    strip --only-keep-debug libtorch/lib/libtorch_cpu.so.dbg
+
+    # Add a debug link to the release lib to the debug lib (debuggers will then
+    # search for symbols in a file called libtorch_cpu.so.dbg in some 
+    # predetermined locations)
+    cd libtorch/lib
+    objcopy libtorch_cpu.so --add-gnu-debuglink=libtorch_cpu.so.dbg
+    cd ../..
+
+    # Move the debug symbols to its own directory so it doesn't get processed /
+    # zipped with all the other libraries
+    mv libtorch/lib/libtorch_cpu.so.dbg libtorch/debug/libtorch_cpu.so.dbg
 
     echo "${PYTORCH_BUILD_VERSION}" > libtorch/build-version
     echo "$(pushd $pytorch_rootdir && git rev-parse HEAD)" > libtorch/build-hash
