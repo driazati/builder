@@ -131,6 +131,7 @@ fi
         # TODO: Remove this flag once https://github.com/pytorch/pytorch/issues/55952 is closed
         CFLAGS='-Wno-deprecated-declarations' \
         BUILD_LIBTORCH_CPU_WITH_DEBUG=1 \
+        USE_GLOO=0 \
         python setup.py install
 
     mkdir -p libtorch/{lib,bin,include,share}
